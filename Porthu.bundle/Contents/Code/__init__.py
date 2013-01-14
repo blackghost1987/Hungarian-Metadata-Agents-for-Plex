@@ -37,27 +37,33 @@ class PorthuAgent(Agent.Movies):
             year = 0
           year_dist = abs(year - media.primary_metadata.year)
           score = 100-year_dist*7
+          #Log("score based on year: %s" % score)
         else:
-          #No year information
-          score = 80
+          Log("No year information")
+          score = 85
         
         #check duration difference if duration is set
-        if (media.primary_metadata.duration is not None):
-          duration_search = re.search(r", \d* perc",info_line)
-          if duration_search is not None:
-            duration_str = duration_search.group()[2:-5]
-            try:
-              duration = float(duration_str)
-            except ValueError:
-              duration = 0
-            duration_dist = abs(duration*60000 - media.primary_metadata.duration)/60000
-            score = score - duration_dist
+        # if (media.primary_metadata.duration is not None):
+          # duration_search = re.search(r", \d* perc",info_line)
+          # if duration_search is not None:
+            # duration_str = duration_search.group()[2:-5]
+            # try:
+              # duration = float(duration_str)
+            # except ValueError:
+              # duration = 0
+            
+            # Log("duration from port: %s - duration from metadata: %s" % (duration,media.primary_metadata.duration))
+            # duration_dist = abs(duration*60000 - media.primary_metadata.duration)/60000
+            # score = score - duration_dist
+            # Log("score base on duration: %s" % score)
+          # else:
+            # Log("No duration information")
       else:
-        #No info line
-        score = 60
+        Log("No info line")
+        score = 80
     else:
-      #No info line
-      score = 60
+      Log("No info line")
+      score = 80
       
     return score
       
@@ -145,7 +151,7 @@ class PorthuAgent(Agent.Movies):
                 
                 if strDist < 5:
                   
-                  score = (-5)*strDist
+                  score = (-3)*strDist
                   
                   #Title matched, let's check the year and duration
                   
@@ -156,7 +162,7 @@ class PorthuAgent(Agent.Movies):
                   
                     score = score + self.calculateScore(media, port_id)
                   
-                    Log("Adding a match with port ID: %s" % port_id)
+                    Log("Adding a match with port ID: %s (score: %s)" % (port_id,score))
                     results.Append(MetadataSearchResult(id = media.primary_metadata.id+"=>"+port_id, score = score))
                     if score >= 90:
                       good_match = True
@@ -202,7 +208,7 @@ class PorthuAgent(Agent.Movies):
           #else no match
       
       if (port_title != ""):
-      
+        #Log("port_title: %s" % port_title)
         strDist = String.LevenshteinDistance(port_title.lower(),title.lower());
       
         #check if the selected title has multiple parts (separated by /)
@@ -214,12 +220,14 @@ class PorthuAgent(Agent.Movies):
             strDistAlt = String.LevenshteinDistance(part.lower(),title.lower());
             if strDistAlt < strDist:
               strDist = strDistAlt
+        #else:
+         #Log("No multi part title")
 
         
         if strDist < 5:
 
-          score = (-5)*strDist
-
+          score = (-3)*strDist
+          #Log("score by strDist: %s" % score)
           #Title matched, let's check the year and duration
           
           port_links = port_info_element.cssselect('link[rel="canonical"]')
@@ -230,12 +238,19 @@ class PorthuAgent(Agent.Movies):
               port_id = id_search.group()[8:]
               
               score = score + self.calculateScore(media, port_id)
+              #Log("score after calcualteScore: %s" % score)
               
-              #Log("Appending from direct match")
+              Log("Adding direct match (with score: %s)" % score)
               results.Append(MetadataSearchResult(id = media.primary_metadata.id+"=>"+port_id, score = score))
               good_match = True
-          #else can't determine Port ID (no canonical link on the direct match page)
-      #end if title empty
+            else:
+              Log("Can't determine Port ID (wrong canonical link)")
+          else:
+            Log("Can't determine Port ID (no canonical link on the direct match page)")
+        else:
+          Log("Title distance is too high, probably faulty match")
+      else:
+        Log("Error: port title empty")
     #end if direct match  
     return good_match
   
