@@ -1,4 +1,4 @@
-Port.hu-Metadata-Agent-for-Plex
+Hungarian-Metadata-Agents-for-Plex
 ===============================
 
-A Metadata Agent for Plex Media Server to get movie titles and summaries from Port.hu hungarian movie database
+Two Metadata Agents for Plex Media Server to get movie titles and summaries from Port.hu and Filmkatalogus.hu hungarian movie database
