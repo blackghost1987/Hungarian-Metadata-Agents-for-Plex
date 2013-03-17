@@ -18,53 +18,68 @@ class PorthuAgent(Agent.Movies):
   primary_provider = False
   contributes_to = ['com.plexapp.agents.imdb']
   
-  def calculateScore(self, media, port_id):
+  def calculatePortScore(self, media, port_id):
     url = PORTHU_MOVIE % (port_id)
     port_info_element = HTML.ElementFromURL(url,cacheTime=3600,timeout=10.0)
     
-    score = 0
+    score = 100
     
-    info_line_search = port_info_element.cssselect('td[width="98%"][valign="top"]')
-    if len(info_line_search)>0:
-      if (info_line_search[0].find('span') is not None):
-        info_line = info_line_search[0].find('span').text_content()
-        
-        year_search = re.search(r"\d{4}",info_line)
-        if year_search is not None:
-          try:
-            year = int(year_search.group())
-          except ValueError:
-            year = 0
-          year_dist = abs(year - media.primary_metadata.year)
-          score = 100-year_dist*7
-          #Log("score based on year: %s" % score)
-        else:
-          Log("No year information")
-          score = 85
-        
-        #check duration difference if duration is set
-        # if (media.primary_metadata.duration is not None):
-          # duration_search = re.search(r", \d* perc",info_line)
-          # if duration_search is not None:
-            # duration_str = duration_search.group()[2:-5]
-            # try:
-              # duration = float(duration_str)
-            # except ValueError:
-              # duration = 0
+    imdb_line_search = port_info_element.cssselect('a[target="top"]')
+    if len(imdb_line_search)>0:
+      for link in imdb_line_search:
+        if link.text_content() == "IMDb":
+          imdb_id = 'tt' + link.attrib['href'][-7:]
+          if (imdb_id == media.primary_metadata.id):
+            return score
             
-            # Log("duration from port: %s - duration from metadata: %s" % (duration,media.primary_metadata.duration))
-            # duration_dist = abs(duration*60000 - media.primary_metadata.duration)/60000
-            # score = score - duration_dist
-            # Log("score base on duration: %s" % score)
-          # else:
-            # Log("No duration information")
+    score = 90
+    
+    if (media.primary_metadata.year) is not None:
+    
+      info_line_search = port_info_element.cssselect('td[width="98%"][valign="top"]')
+      if len(info_line_search)>0:
+        if (info_line_search[0].find('span') is not None):
+          info_line = info_line_search[0].find('span').text_content()
+          
+          year_search = re.search(r"\d{4}",info_line)
+          if year_search is not None:
+            try:
+              year = int(year_search.group())
+            except ValueError:
+              year = 0
+            year_dist = abs(year - media.primary_metadata.year)
+            score = score-year_dist*7
+            #Log("score based on year: %s" % score)
+          else:
+            Log("No year information")
+            score = score - 15
+          
+          #check duration difference if duration is set
+          # if (media.primary_metadata.duration is not None):
+            # duration_search = re.search(r", \d* perc",info_line)
+            # if duration_search is not None:
+              # duration_str = duration_search.group()[2:-5]
+              # try:
+                # duration = float(duration_str)
+              # except ValueError:
+                # duration = 0
+              
+              # Log("duration from port: %s - duration from metadata: %s" % (duration,media.primary_metadata.duration))
+              # duration_dist = abs(duration*60000 - media.primary_metadata.duration)/60000
+              # score = score - duration_dist
+              # Log("score base on duration: %s" % score)
+            # else:
+              # Log("No duration information")
+        else:
+          Log("No info line")
+          score = 80
       else:
         Log("No info line")
         score = 80
+    
     else:
-      Log("No info line")
-      score = 80
-      
+      Log("No year info from IMDB")
+    
     return score
       
   def searchPorthu(self, results, media, title, hungarian):
@@ -79,7 +94,7 @@ class PorthuAgent(Agent.Movies):
     
     #check if multiple result or direct match
     if wrapper != "-":
-      #multiple result, getting result pages
+      #Log("multiple result, getting result pages")
       lastpage = 0
       for pagelink in wrapper.getparent().cssselect('span[class="txt"] a[class="bodlink"]'):
         pagenum_search = re.search(r"i_page=\d*&",pagelink.attrib['href'])
@@ -160,7 +175,7 @@ class PorthuAgent(Agent.Movies):
                   if id_search is not None:
                     port_id = id_search.group()[8:-1]
                   
-                    score = score + self.calculateScore(media, port_id)
+                    score = score + self.calculatePortScore(media, port_id)
                   
                     Log("Adding a match with port ID: %s (score: %s)" % (port_id,score))
                     results.Append(MetadataSearchResult(id = media.primary_metadata.id+"=>"+port_id, score = score))
@@ -237,7 +252,7 @@ class PorthuAgent(Agent.Movies):
             if id_search is not None:
               port_id = id_search.group()[8:]
               
-              score = score + self.calculateScore(media, port_id)
+              score = score + self.calculatePortScore(media, port_id)
               #Log("score after calcualteScore: %s" % score)
               
               Log("Adding direct match (with score: %s)" % score)
@@ -285,7 +300,16 @@ class PorthuAgent(Agent.Movies):
     #end for
     return None
   
+  def getPortSummary(self, page):
+    summary_search = page.cssselect('td[colspan="2"][align="left"]')
+    summary = summary_search[0].text_content()[2:]
+    airdate_search = re.search(r"Bemut",summary)
+    if airdate_search is not None:
+      summary = summary[:airdate_search.start()]
+    return summary
+  
   def search(self, results, media, lang, manual=False):
+  
     if media.primary_metadata is None:
       Log("No IMDB match, can't do anything")
       return
@@ -342,14 +366,37 @@ class PorthuAgent(Agent.Movies):
       #ending with hungarian title only
       
     else:
+      Log("Hungarian title not found")
     
-      Log("Hungarian title not found, trying to get the original title from IMDB")
-      orig_title = self.getMainTitleFromIMDB(media.primary_metadata.id)
+    Log("Trying to get the original title from IMDB")
+    orig_title = self.getMainTitleFromIMDB(media.primary_metadata.id)
+    if (orig_title is not None):
+      #Log("original title: %s" % orig_title)
+      if self.searchPorthu(results, media, orig_title, False):
+        return
+        
+      title = re.sub(r"[\.,:;/\?!-]","",orig_title)
+      if title!=orig_title:
+        if self.searchPorthu(results, media, title, False):
+          return
+        
+      title = re.sub(r"[\.,:;/\?!-]"," ",orig_title)
+      if title!=orig_title:
+        if self.searchPorthu(results, media, title, False):
+          return
+        
+    #end if orig_title  
+    
+    Log("No match with original title, trying with other titles from country list")
+  
+    for country in media.primary_metadata.countries:
+      Log("Searching title from country: %s" % country)
+      orig_title = self.getForeignTitleFromIMDB(country,media.primary_metadata.id)
       if (orig_title is not None):
-        #Log("original title: %s" % orig_title)
+        Log("Original title might be: %s" % orig_title)
         if self.searchPorthu(results, media, orig_title, False):
           return
-          
+        
         title = re.sub(r"[\.,:;/\?!-]","",orig_title)
         if title!=orig_title:
           if self.searchPorthu(results, media, title, False):
@@ -359,32 +406,10 @@ class PorthuAgent(Agent.Movies):
         if title!=orig_title:
           if self.searchPorthu(results, media, title, False):
             return
-          
-      #end if orig_title  
-      
-      Log("No match with original title, trying with other titles from country list")
-    
-      for country in media.primary_metadata.countries:
-        Log("Searching title from country: %s" % country)
-        orig_title = self.getForeignTitleFromIMDB(country,media.primary_metadata.id)
-        if (orig_title is not None):
-          Log("Original title might be: %s" % orig_title)
-          if self.searchPorthu(results, media, orig_title, False):
-            return
-          
-          title = re.sub(r"[\.,:;/\?!-]","",orig_title)
-          if title!=orig_title:
-            if self.searchPorthu(results, media, title, False):
-              return
-            
-          title = re.sub(r"[\.,:;/\?!-]"," ",orig_title)
-          if title!=orig_title:
-            if self.searchPorthu(results, media, title, False):
-              return
-      #for end
+    #for end
   
     Log("No Port.hu match found, giving up")
-       
+   
   def update(self, metadata, media, lang):
     both_id = re.split("=>",metadata.id)
     imdb_id = both_id[0]
@@ -424,11 +449,7 @@ class PorthuAgent(Agent.Movies):
           metadata.original_title = port_title
         
       #getting the summary
-      summary_search = port_info_element.cssselect('td[colspan="2"][align="left"]')
-      summary = summary_search[0].text_content()[2:]
-      airdate_search = re.search(r"Bemut",summary)
-      if airdate_search is not None:
-        summary = summary[:airdate_search.start()]
+      summary = self.getPortSummary(port_info_element)
       if len(summary)>2:
         Log("Movie summary found")
         metadata.summary = summary
