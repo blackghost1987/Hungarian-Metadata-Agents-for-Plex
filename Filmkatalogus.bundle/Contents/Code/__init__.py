@@ -8,6 +8,7 @@ FILMKATALOGUS_SEARCH = 'http://www.filmkatalogus.hu/kereses'
 FILMKATALOGUS_LIST = 'http://www.filmkatalogus.hu/osszestalalat-f-'
 FILMKATALOGUS_MOVIE = 'http://www.filmkatalogus.hu/'
 IMDB_RELEASEINFO = 'http://www.imdb.com/title/%s/releaseinfo'
+IMDB_MAIN = 'http://www.imdb.com/title/%s/'
 
 def Start():
   Log("Filmkatalogus agent started")
@@ -208,13 +209,13 @@ class FilmkatalogusAgent(Agent.Movies):
     return good_match
   
   def getMainTitleFromIMDB(self, IMDB_ID):
-    url = IMDB_RELEASEINFO % IMDB_ID
+    url = IMDB_MAIN % IMDB_ID
     imdb_releaseinfo = HTML.ElementFromURL(url,cacheTime=3600,timeout=10.0)
     
     imdb_title = imdb_releaseinfo.cssselect('span.title-extra')
     if len(imdb_title)>0:
       if (len(imdb_title[0].text_content())>0):
-        return imdb_title[0].text_content()[:-17]
+        return imdb_title[0].text_content().strip()[:-17].strip()[1:-1]
       #else get main title
     
     imdb_title = imdb_releaseinfo.cssselect('a.main')
@@ -227,11 +228,11 @@ class FilmkatalogusAgent(Agent.Movies):
     url = IMDB_RELEASEINFO % IMDB_ID
     #Log("imdb releaseinfo url: %s" % url)
     imdb_releaseinfo = HTML.ElementFromURL(url,cacheTime=3600,timeout=10.0)
-    title_trs = imdb_releaseinfo.cssselect('#tn15content h5+table tr')
+    title_trs = imdb_releaseinfo.cssselect('#akas tr')
     for title_tr in title_trs:
         children = title_tr.getchildren()
-        title = children[0].text_content()
-        country = children[1].text_content()
+        country = children[0].text_content()
+        title = children[1].text_content()
         #Log("title: %s ; country: %s" % (title,country))
         if re.search(search_country,country,re.IGNORECASE) is not None:
           return title
